@@ -4,7 +4,9 @@
 ### DIURNAL PATTERNS OF VISUALLY OBSERVED HUMPBACK WHALES FROM A LAND STATION OFF MAUI, HAWAIʻI
 
 # Written by Anke Kügler
-# Last updated by Anke Kügler, 06/10/2022
+# Last updated by Anke Kügler, 12/05/2023
+# Contact: anke.kuegler@gmail.com
+# Corresponds with analyses and figures in Kügler et al. (in Review)
 
 # This script analyses sightings of humpback whales obtained during land-based visual surveys off Olowalu, Maui, Hawaii
 # during the 2017-2020 whale seasons to investigate diurnal patterns of occurrence relative to three bathymetric features.
@@ -22,7 +24,8 @@
 
 #Generalized Additive Models (GAMs) are fit for three bathymetric metrics (distance to shore, depth, distance to -200 m isobath) and 
 #   day of the season
-#   hour of the day
+#   hour of the day (by group size)
+#   group size (1, 2, >=3)
 #   season (representing respective whale seasons from December through April)
 
 #Functions:
@@ -104,21 +107,23 @@ gam_plots_params<-function(season=F, diel=F, signif=T){
                           fill = "lightcoral", alpha = 0.3),
     if(!signif)geom_line(color='#ba6a68'),
     theme_bw(),
-    if(signif)theme(axis.text = element_text(size = 14, color = "black"),
-          axis.title = element_text(size = 14, color = "black"),
-          axis.text.y = element_text(size = 14, color = "black", angle = 90, hjust=0.5),
+    if(signif)theme(axis.text = element_text(size = 16, color = "black"),
+          axis.title = element_text(size = 16, color = "black"),
+          axis.text.y = element_text(size = 16, color = "black", angle = 90, hjust=0.5),
           panel.border=element_rect(color="black", size=0.75), 
           panel.grid = element_blank(),
           axis.line.x.top = element_line(color="black", size=0.75)),
-    if(!signif)theme(axis.text = element_text(size = 14, color = "#ba6a68"),
-                    axis.title = element_text(size = 14, color = "#ba6a68"),
-                    axis.text.y = element_text(size = 14, color = "#ba6a68", angle = 90, hjust=0.5),
+    if(!signif)theme(axis.text = element_text(size = 16, color = "#ba6a68"),
+                    axis.title = element_text(size = 16, color = "#ba6a68"),
+                    axis.text.y = element_text(size = 16, color = "#ba6a68", angle = 90, hjust=0.5),
                     panel.border=element_rect(color="#ba6a68", size=0.75), 
                     panel.grid = element_blank(),
                     axis.line.x.top = element_line(color="#ba6a68", size=0.75),
                     axis.ticks= element_line(color="#ba6a68")),
     if(season)scale_x_continuous(limits=c(0,145), breaks=c(0,20,40,60,80,100,120, 140), labels=c('0','20','40','60','80','100','120','140')),
-    if(diel)  scale_x_continuous(breaks=seq(from=8, to=14, by=1)/24, labels=c('8', '9', '10', '11', '12', '13', '14'))
+    if(diel)  scale_x_continuous(breaks=seq(from=8, to=14, by=1)/24, labels=c('8', '9', '10', '11', '12', '13', '14')),
+    if(season)labs(x='Day of the season', y='Partial effect'),
+    if(diel)labs(x='Hour', y='Partial effect')
   )
 }
 
@@ -132,20 +137,22 @@ gam_paraplots_params<-function(diel=F, connect=F, signif=T){
     if(signif)geom_hpline(stat='identity', size=1, width=0.75, color='black'),
     if(!signif)geom_hpline(stat='identity', size=1, width=0.75, color='#ba6a68'),
     theme_bw(),
-    if(signif)theme(axis.text = element_text(size = 14, color = "black"),
-          axis.title = element_text(size = 14, color = "black"),
-          axis.text.y = element_text(size = 14, color = "black", angle = 90, hjust=0.5),
+    if(signif)theme(axis.text = element_text(size = 16, color = "black"),
+          axis.title = element_text(size = 16, color = "black"),
+          axis.text.y = element_text(size = 16, color = "black", angle = 90, hjust=0.5),
           panel.border=element_rect(color="black", size=0.75), 
           panel.grid = element_blank(),
           axis.line.x.top = element_line(color="black", size=0.75)),
-    if(!signif)theme(axis.text = element_text(size = 14, color = "#ba6a68"),
-          axis.title = element_text(size = 14, color = "#ba6a68"),
-          axis.text.y = element_text(size = 14, color = "#ba6a68", angle = 90, hjust=0.5),
+    if(!signif)theme(axis.text = element_text(size = 16, color = "#ba6a68"),
+          axis.title = element_text(size = 16, color = "#ba6a68"),
+          axis.text.y = element_text(size = 16, color = "#ba6a68", angle = 90, hjust=0.5),
           panel.border=element_rect(color="#ba6a68", size=0.75), 
           panel.grid = element_blank(),
           axis.line.x.top = element_line(color="#ba6a68", size=0.75),
           axis.ticks= element_line(color="#ba6a68")),
-  if(diel)scale_x_discrete(labels=c('8:00', '9:00', '10:00', '11:00', '12:00', '13:00', '14:00'))
+#  if(diel)scale_x_discrete(labels=c('8:00', '9:00', '10:00', '11:00', '12:00', '13:00', '14:00')),
+  labs(x='', y="Partial effect") 
+  
    )
 }
 
@@ -357,8 +364,8 @@ survey.effort.h<-as.data.frame(olowalu.land %>%
                                  summarise(
                                    n=length(unique(Date))))
 
-#write.csv(survey.effort.month, 'Results/Maui_LandObservations_effort_month.csv', row.names=F)
-#write.csv(survey.effort.h, 'Results/Maui_LandObservations_effort_hour.csv', row.names=F)
+#write.csv(survey.effort.month, '../Results/Maui_LandObservations_effort_month.csv', row.names=F)
+#write.csv(survey.effort.h, '../Results/Maui_LandObservations_effort_hour.csv', row.names=F)
 
 
 #---
@@ -389,8 +396,8 @@ olowalu.land$depth<-depths[,3]
 
 #c) Distance to -200m isobath ---
 
-dist_200<-round(dist2isobath(maui.bathy, olowalu.land[,c('Long', 'Lat')], isobath=-200, locator=F))
-olowalu.land$dist_200<-dist_200[,1]
+#dist_200<-round(dist2isobath(maui.bathy, olowalu.land[,c('Long', 'Lat')], isobath=-200, locator=F))
+#olowalu.land$dist_200<-dist_200[,1]
 
 # ---
 
@@ -426,8 +433,9 @@ olowalu.land.summary<-as.data.frame(olowalu.land %>%
                                        IQR.dist_shore=IQR(dist_shore, na.rm=T),
                                        median.depth=median(depth, na.rm=T),
                                        IQR.depth=IQR(depth, na.rm=T),
-                                       median.dist_200=median(dist_200, na.rm=T),
-                                       IQR.dist_200=IQR(dist_200, na.rm=T)) %>%
+                                       #median.dist_200=median(dist_200, na.rm=T),
+                                       #IQR.dist_200=IQR(dist_200, na.rm=T)
+                                       ) %>%
                                ungroup() %>%
                                mutate_at(vars(year), funs(as.character(.))) %>%
                                bind_rows(summarise(year="2017-2020",olowalu.land,
@@ -436,11 +444,12 @@ olowalu.land.summary<-as.data.frame(olowalu.land %>%
                                                    IQR.dist_shore=IQR(dist_shore, na.rm=T),
                                                    median.depth=median(depth, na.rm=T),
                                                    IQR.depth=IQR(depth, na.rm=T),
-                                                   median.dist_200=median(dist_200, na.rm=T),
-                                                   IQR.dist_200=IQR(dist_200, na.rm=T)))
+                                                   #median.dist_200=median(dist_200, na.rm=T),
+                                                   #IQR.dist_200=IQR(dist_200, na.rm=T)
+                                                   ))
                               )
 
-#write.csv(olowalu.land.summary, 'Results/Maui_LandObservations_summary.csv', row.names=F)
+#write.csv(olowalu.land.summary, '../Results/Maui_LandObservations_summary.csv', row.names=F)
 
 
 ##correct for scans with no whale sightings (create "NA" sightings) to get accurate n averages per scan
@@ -468,10 +477,10 @@ no.whales.but.effort$year[which(as.numeric(format(as.Date(no.whales.but.effort$D
 no.whales.but.effort$year<-factor(no.whales.but.effort$year, ordered=T)
 
 #create dummy NA's for the other variables
-xx<-c('Time', 'Scan', 'Whale', 'Lat', 'Long', 'Distance', 'method', 'depth', 'calf.pod', 'depth', 'dist_shore', 'dist_shore', 'dist_200', 'julian', 'day.season')
+xx<-c('Time', 'Scan', 'Whale', 'Lat', 'Long', 'Distance', 'method', 'depth', 'calf.pod', 'depth', 'dist_shore', 'dist_shore', 'julian', 'day.season')
 no.whales.but.effort<-cbind(no.whales.but.effort, setNames( lapply(xx, function(x) x=NA), xx) )
 no.whales.but.effort<-no.whales.but.effort[,c('Date','Time', 'Scan', 'Whale', 'Lat', 'Long', 'Distance', 'year', 'method', 'Hour', 'calf.pod',
-                                              'depth', 'dist_shore', 'dist_200', 'julian', 'day.season')]
+                                              'depth', 'dist_shore', 'julian', 'day.season')]
 
 olowalu.land.complete<-rbind(olowalu.land,no.whales.but.effort)
 
@@ -486,8 +495,9 @@ olowalu.land.summary.byhour<-as.data.frame(olowalu.land.complete %>%
                                                        IQR.dist_shore=IQR(dist_shore, na.rm=T),
                                                        median.depth=median(depth, na.rm=T),
                                                        IQR.depth=IQR(depth, na.rm=T),
-                                                       median.dist_200=median(dist_200, na.rm=T),
-                                                       IQR.dist_200=IQR(dist_200, na.rm=T)) %>%
+                                                       #median.dist_200=median(dist_200, na.rm=T),
+                                                       #IQR.dist_200=IQR(dist_200, na.rm=T)
+                                                       ) %>%
                                              ungroup() %>%
                                              mutate_at(vars(year), funs(as.character(.))) %>%
                                              bind_rows( summarise(year="2017-2020",olowalu.land.complete[!(olowalu.land.complete$year=='2018'&olowalu.land.complete$Hour=='08:00:00'),]%>%group_by(Hour),
@@ -498,18 +508,36 @@ olowalu.land.summary.byhour<-as.data.frame(olowalu.land.complete %>%
                                                                  IQR.dist_shore=IQR(dist_shore, na.rm=T),
                                                                  median.depth=median(depth, na.rm=T),
                                                                  IQR.depth=IQR(depth, na.rm=T),
-                                                                 median.dist_200=median(dist_200, na.rm=T),
-                                                                 IQR.dist_200=IQR(dist_200, na.rm=T))) 
+                                                                 #median.dist_200=median(dist_200, na.rm=T),
+                                                                 #IQR.dist_200=IQR(dist_200, na.rm=T)
+                                                                 )) 
                                               )
 
-#write.csv(olowalu.land.summary.byhour, 'Results/Maui_LandObservations_summary_hour.csv', row.names=F)
+#write.csv(olowalu.land.summary.byhour, '../Results/Maui_LandObservations_summary_hour.csv', row.names=F)
+
+
+olowalu.land$Whales.n<-NA
+olowalu.land$Whales.n[olowalu.land$Whale=='Solitary' | olowalu.land$Whale=='Whale' ] <-1
+olowalu.land$Whales.n[olowalu.land$Whale=='Dyad' |  olowalu.land$Whale=='M/c'] <-2
+olowalu.land$Whales.n[olowalu.land$Whale=='Comp Pod' | olowalu.land$Whale=='M/c/E'] <-3
+olowalu.land$Whales.n<-as.factor(olowalu.land$Whales.n)
+
+olowalu.land.n<-as.data.frame(olowalu.land%>%
+                                group_by(Date, Hour)%>%
+                                summarise(n=n(),
+                                          day.season=day.season,
+                                          year=year))
 
 
 # 4) STATISTICAL ANALYSIS (Generalized Additive Models) ----
 
-gam.dist_shore<-gam(dist_shore ~ s(day.season) + s(Hour, k=7) + year, data=olowalu.land, method='REML', select=T)
-gam.depth<-gam(depth ~ s(day.season) + s(Hour, k=7) + year, data=olowalu.land, method='REML', select=T)
-gam.dist_200<-gam(dist_200 ~ s(day.season) + s(Hour, k=7) + year, data=olowalu.land, method='REML', select=T)
+#gam.dist_shore<-gam(dist_shore ~ s(day.season) + s(Hour, k=7) + year, data=olowalu.land, method='REML', select=T)
+#gam.depth<-gam(depth ~ s(day.season) + s(Hour, k=7) + year, data=olowalu.land, method='REML', select=T)
+#gam.dist_200<-gam(dist_200 ~ s(day.season) + s(Hour, k=7) + year, data=olowalu.land, method='REML', select=T)
+
+gam.dist_shore<-gam(dist_shore ~ s(day.season) + s(Hour, k=7, by=Whales.n)  + Whales.n + year, data=olowalu.land, method='REML', select=T)
+gam.depth<-gam(depth ~ s(day.season) + s(Hour, k=7, by=Whales.n)  + Whales.n + year, data=olowalu.land, method='REML', select=T)
+#gam.dist_200<-gam(dist_200 ~ s(day.season) + s(Hour, k=7, by=Whales.n)  + Whales.n + year, data=olowalu.land, method='REML', select=T)
 
 #gam.dist_shore.full<-gam(dist_shore ~ s(day.season) + ti(day.season, Hour) + s(Hour, k=7) + year, data=olowalu.land, method='REML', select=T)
 #gam.depth.full<-gam(depth ~ s(day.season) + ti(day.season, Hour) + s(Hour, k=7) + year, data=olowalu.land, method='REML', select=T)
@@ -520,10 +548,27 @@ gam.dist_200<-gam(dist_200 ~ s(day.season) + s(Hour, k=7) + year, data=olowalu.l
 #depth: edf=0.009323, F=0.000 p=0.670484
 #dist_200: edf=0.95321, F=0.120, p=0.1284
 
+#gam.dist_shore.full<-gam(dist_shore ~ s(day.season) + ti(day.season, Hour, by=Whales.n) +  s(Hour, k=7, by=Whales.n) + Whales.n + year, data=olowalu.land, method='REML', select=T)
+#gam.depth.full<-gam(depth ~ s(day.season) + ti(day.season, Hour, by=Whales.n) +  s(Hour, k=7, by=Whales.n) + Whales.n + year, data=olowalu.land, method='REML', select=T)
+
+#no significant ti interactions:
+#dist_shore: Whales.n1=1 - edf=0.02751, F=0.001, p=0.7111
+#            Whales.n1=2 - edf=1.79664, F=0.195, p=0.1187
+#            Whales.n1=3 - edf=0.78006, F=0.059, p=0.2751
+#depth: Whales.n1=1 - edf=0.004843, F=0.000, p=0.970322
+#       Whales.n1=2 - edf=0.586878, F=0.053, p=0.229850
+#       Whales.n1=3 - edf=0.004756, F=0.000, p=0.752636
+
+#check for autocorrelation
+acf(residuals(gam.dist_shore))
+pacf(residuals(gam.dist_shore))
+acf(residuals(gam.depth))
+pacf(residuals(gam.depth))
+
 #get signifcances
 anova.dist_shore<-anova(gam.dist_shore)
 anova.depth<-anova(gam.depth)
-anova.dist_200<-anova(gam.dist_200)
+#anova.dist_200<-anova(gam.dist_200)
 
 # ---
 
@@ -534,7 +579,7 @@ anova.dist_200<-anova(gam.dist_200)
 
 sm.shore <- plot(gam.dist_shore, pages=1, scale=0)  # plot.gam returns a list of n elements, one per plot
 sm.depth <- plot(gam.depth, pages=1, scale=0)  
-sm.200 <- plot(gam.dist_200, pages=1, scale=0)  
+#sm.200 <- plot(gam.dist_200, pages=1, scale=0)  
 
 #get x, fit, and se for each plot and save to DF
 get_GAMsmoothers<-function(smoothers,n){
@@ -549,17 +594,25 @@ get_GAMsmoothers<-function(smoothers,n){
 # Distance to shore
 
 sm.shore.seasonal<-get_GAMsmoothers(sm.shore,1)
-sm.shore.diel<-get_GAMsmoothers(sm.shore,2)
+#sm.shore.diel<-get_GAMsmoothers(sm.shore,2)
+
+sm.shore.diel.1<-get_GAMsmoothers(sm.shore,2)
+sm.shore.diel.2<-get_GAMsmoothers(sm.shore,3)
+sm.shore.diel.3<-get_GAMsmoothers(sm.shore,4)
 
 # Depth
 
 sm.depth.seasonal<-get_GAMsmoothers(sm.depth,1)
-sm.depth.diel<-get_GAMsmoothers(sm.depth,2)
+#sm.depth.diel<-get_GAMsmoothers(sm.depth,2)
 
-# Distance to -200 m
+sm.depth.diel.1<-get_GAMsmoothers(sm.depth,2)
+sm.depth.diel.2<-get_GAMsmoothers(sm.depth,3)
+sm.depth.diel.3<-get_GAMsmoothers(sm.depth,4)
 
-sm.200.seasonal<-get_GAMsmoothers(sm.200,1)
-sm.200.diel<-get_GAMsmoothers(sm.200,2)
+## Distance to -200 m
+
+#sm.200.seasonal<-get_GAMsmoothers(sm.200,1)
+#sm.200.diel<-get_GAMsmoothers(sm.200,2)
 
 
 ###---
@@ -568,7 +621,7 @@ sm.200.diel<-get_GAMsmoothers(sm.200,2)
 
 para.shore <- termplot(gam.dist_shore, se = TRUE, plot = FALSE)
 para.depth <- termplot(gam.depth, se = TRUE, plot = FALSE)
-para.200 <- termplot(gam.dist_200, se = TRUE, plot = FALSE)
+#para.200 <- termplot(gam.dist_200, se = TRUE, plot = FALSE)
 
 ###---
 
@@ -578,56 +631,106 @@ para.200 <- termplot(gam.dist_200, se = TRUE, plot = FALSE)
 
 gam.plot.shore.seasonal<-ggplot(data=sm.shore.seasonal, aes(x=x, y=fit)) +
   gam_plots_params(season=T, signif=ifelse(anova.dist_shore$s.table[1,4]<=0.05, TRUE, FALSE)) +
-  labs(x='Day of the season', y="Partial effect for distance to shore") +
-  scale_y_continuous(breaks=c(0, 500, 1000,1500), labels=c('0', '500','1000', ''))
+  scale_y_continuous(limits=c(-500,1650),breaks=c(0, 500, 1000, 1500), labels=c('0', '500','', '1500'))
 
-gam.plot.shore.hour<-ggplot(data=sm.shore.diel, aes(x=x, y=fit)) +
+#gam.plot.shore.hour<-ggplot(data=sm.shore.diel, aes(x=x, y=fit)) +
+#  gam_plots_params(diel=T, signif=ifelse(anova.dist_shore$s.table[2,4]<=0.05, TRUE, FALSE)) +
+#  scale_y_continuous(breaks=c(-300, -200, -100, 0, 100, 200), labels=c('', '-200','', '0', '', '200')) 
+
+gam.plot.shore.hour.1<-ggplot(data=sm.shore.diel.1, aes(x=x, y=fit)) +
   gam_plots_params(diel=T, signif=ifelse(anova.dist_shore$s.table[2,4]<=0.05, TRUE, FALSE)) +
-  labs(x='Hour', y="Partial effect for distance to shore") +
-  scale_y_continuous(breaks=c(-300, -200, -100, 0, 100, 200), labels=c('', '-200','', '0', '', '200')) 
+  scale_y_continuous(breaks=c(-300, -200, -100, 0, 100, 200), labels=c('', '-200','', '0', '', '200'))+
+  ggtitle('Group size = 1')
+
+gam.plot.shore.hour.2<-ggplot(data=sm.shore.diel.2, aes(x=x, y=fit)) +
+  gam_plots_params(diel=T, signif=ifelse(anova.dist_shore$s.table[3,4]<=0.05, TRUE, FALSE)) +
+  scale_y_continuous(breaks=c(-400, -200, 0, 200, 400), labels=c('-400', '','0', '', '400')) +
+  ggtitle('Group size = 2')
+
+gam.plot.shore.hour.3<-ggplot(data=sm.shore.diel.3, aes(x=x, y=fit)) +
+  gam_plots_params(diel=T, signif=ifelse(anova.dist_shore$s.table[4,4]<=0.05, TRUE, FALSE)) +
+  scale_y_continuous(breaks=c(-400, -200, 0, 200, 400), labels=c('-400', '','0', '', '400')) +
+  ggtitle('Group size ≥ 3')
+
+gam.paraplot.shore.podsz<-ggplot(data=para.shore$Whales.n, aes(x=x, y=y)) +
+  gam_paraplots_params(signif=ifelse(anova.dist_shore$pTerms.table['Whales.n', 'p-value']<=0.05, TRUE, FALSE)) +
+  scale_y_continuous(limits=c(-250, 1100), breaks=c(0, 500, 1000,1500), labels=c('0', '500','1000', '')) +
+  labs(x='Group size') +
+  scale_x_discrete(labels=c('1','2','≥ 3'))
 
 gam.paraplot.shore.seasons<-ggplot(data=para.shore$year, aes(x=x, y=y)) +
-  gam_paraplots_params(signif=ifelse(anova.dist_shore$pTerms.table[3]<=0.05, TRUE, FALSE)) +
-  labs(x='', y="Partial effect for distance to shore")
+  gam_paraplots_params(signif=ifelse(anova.dist_shore$pTerms.table['year', 'p-value']<=0.05, TRUE, FALSE)) +
+  scale_y_continuous(limits=c(-300,110),breaks=c(-300, -200, -100, 0, 100), labels=c('', '-200','', '0', '100')) 
 
 # Depth
 
 gam.plot.depth.seasonal<-ggplot(data=sm.depth.seasonal, aes(x=x, y=fit)) +
-  gam_plots_params(season=T, signif=ifelse(anova.depth$s.table[1,4]<=0.05, TRUE, FALSE)) +
-  labs(x='Day of the season', y="Partial effect for depth")
+  gam_plots_params(season=T, signif=ifelse(anova.depth$s.table[1,4]<=0.05, TRUE, FALSE)) 
 
-gam.plot.depth.hour<-ggplot(data=sm.depth.diel, aes(x=x, y=fit)) +
+#gam.plot.depth.hour<-ggplot(data=sm.depth.diel, aes(x=x, y=fit)) +
+#  gam_plots_params(diel=T, signif=ifelse(anova.depth$s.table[2,4]<=0.05, TRUE, FALSE)) 
+
+gam.plot.depth.hour.1<-ggplot(data=sm.depth.diel.1, aes(x=x, y=fit)) +
   gam_plots_params(diel=T, signif=ifelse(anova.depth$s.table[2,4]<=0.05, TRUE, FALSE)) +
-  labs(x='Hour', y="Partial effect for depth")
+  ggtitle('Group size = 1')
+
+gam.plot.depth.hour.2<-ggplot(data=sm.depth.diel.2, aes(x=x, y=fit)) +
+  gam_plots_params(diel=T, signif=ifelse(anova.depth$s.table[3,4]<=0.05, TRUE, FALSE)) +
+  ggtitle('Group size = 2') +
+  scale_y_continuous(breaks=c(-4, -2, 0,2,4)) 
+  
+gam.plot.depth.hour.3<-ggplot(data=sm.depth.diel.3, aes(x=x, y=fit)) +
+  gam_plots_params(diel=T, signif=ifelse(anova.depth$s.table[4,4]<=0.05, TRUE, FALSE)) +
+  ggtitle('Group size ≥ 3')
+
+gam.paraplot.depth.podsz<-ggplot(data=para.depth$Whales.n, aes(x=x, y=y)) +
+  gam_paraplots_params(signif=ifelse(anova.dist_shore$pTerms.table['Whales.n', 'p-value']<=0.05, TRUE, FALSE)) +
+#  scale_y_continuous(breaks=c(0, 500, 1000,1500), labels=c('0', '500','1000', '')) +
+  labs(x='Group size') +
+  scale_x_discrete(labels=c('1','2','≥ 3'))
 
 gam.paraplot.depth.seasons<-ggplot(data=para.depth$year, aes(x=x, y=y)) +
-  gam_paraplots_params(signif=ifelse(anova.depth$pTerms.table[3]<=0.05, TRUE, FALSE)) +
-  labs(x='', y="Partial effect for depth") 
+  gam_paraplots_params(signif=ifelse(anova.depth$pTerms.table[3]<=0.05, TRUE, FALSE)) 
 
-# Distance to -200 m isobath
+## Distance to -200 m isobath
 
-gam.plot.200.seasonal<-ggplot(data=sm.200.seasonal, aes(x=x, y=fit)) +
-  gam_plots_params(season=T, signif=ifelse(anova.dist_200$s.table[1,4]<=0.05, TRUE, FALSE)) +
-  labs(x='Day of the season', y="Partial effect for distance to -200 isobath")
+#gam.plot.200.seasonal<-ggplot(data=sm.200.seasonal, aes(x=x, y=fit)) +
+#  gam_plots_params(season=T, signif=ifelse(anova.dist_200$s.table[1,4]<=0.05, TRUE, FALSE)) +
+#  scale_y_continuous(breaks=c(-750, -500, -250, 0), labels=c('', '-500','', '0')) 
 
+#gam.plot.200.hour<-ggplot(data=sm.200.diel, aes(x=x, y=fit)) +
+#  gam_plots_params(diel=T, signif=ifelse(anova.dist_200$s.table[2,4]<=0.05, TRUE, FALSE)) 
 
-gam.plot.200.hour<-ggplot(data=sm.200.diel, aes(x=x, y=fit)) +
-  gam_plots_params(diel=T, signif=ifelse(anova.dist_200$s.table[2,4]<=0.05, TRUE, FALSE)) +
-  labs(x='Hour', y="Partial effect for distance to -200 isobath")
-
-gam.paraplot.200.seasons<-ggplot(data=para.200$year, aes(x=x, y=y)) +
-  gam_paraplots_params(signif=ifelse(anova.dist_200$pTerms.table[3]<=0.05, TRUE, FALSE)) +
-  labs(x='', y="Partial effect for distance to -200 isobath") 
+#gam.paraplot.200.seasons<-ggplot(data=para.200$year, aes(x=x, y=y)) +
+#  gam_paraplots_params(signif=ifelse(anova.dist_200$pTerms.table[3]<=0.05, TRUE, FALSE)) 
 
 ### ---
 
-#combine subplots into one plot and save to file
+#combine subplots into one plot and save to file (Fig.7 in Kügler et al.)
+  
+gam.plot.shore.1<-(gam.plot.shore.seasonal + gam.paraplot.shore.podsz + gam.paraplot.shore.seasons)
+gam.plot.shore.2<-(gam.plot.shore.hour.1 + gam.plot.shore.hour.2 + gam.plot.shore.hour.3) 
 
-gam.land<-(gam.plot.shore.seasonal | gam.plot.shore.hour | gam.paraplot.shore.seasons) /
-  (gam.plot.depth.seasonal | gam.plot.depth.hour | gam.paraplot.depth.seasons) /
-  (gam.plot.200.seasonal | gam.plot.200.hour | gam.paraplot.200.seasons)
+gam.plot.shore<-(gam.plot.shore.1 / gam.plot.shore.2 ) + plot_annotation(title = "Distance to shore",
+                                                                        theme = theme(plot.title = element_text(size = 16, face='italic'),
+                                                                                      plot.margin=unit(c(0, 0, 0, 1), "cm")))
 
-#ggsave(gam.land, filename='Plots/Maui_LandObservations_GAM.png', width=18.5, height=10.5, units='in',  bg = "white")    
+gam.plot.depth.1<-(gam.plot.depth.seasonal + gam.paraplot.depth.podsz + gam.paraplot.depth.seasons)
+gam.plot.depth.2<-(gam.plot.depth.hour.1 + gam.plot.depth.hour.2 + gam.plot.depth.hour.3) 
+
+gam.plot.depth<-(gam.plot.depth.1 / gam.plot.depth.2 ) + plot_annotation(title = "Depth",
+                                                                         theme = theme(plot.title = element_text(size = 16, face='italic'), 
+                                                                                       plot.margin=unit(c(0, 0, 0, 1), "cm")))
+
+gam.land<-wrap_elements(gam.plot.shore) /
+          plot_spacer() /
+          wrap_elements(gam.plot.depth) +
+    plot_layout(heights = c(1, 0.01 ,1)) +
+    plot_annotation(tag_levels = c('A', 'B')) &
+    theme(plot.tag = element_text(size = 20), #, face = "bold"
+          plot.tag.position = c(0, 0.98))
+
+ggsave(gam.land, filename='../Plots/Maui_LandObservations_GAM_new.png', width=15, height=10.5, units='in',  bg = "white")   
 
 
 ################################################################

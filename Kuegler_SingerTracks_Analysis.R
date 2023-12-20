@@ -4,25 +4,31 @@
 ### DIEL PATTERNS OF INDIVIDUAL HUMPBACK WHALE SINGERS OFF MAUI, HAWAIʻI
 
 # Written by Anke Kügler
-# Last updated by Anke Kügler, 06/10/2022
+# Last updated by Anke Kügler, 12/05/2023
 # Contact: anke.kuegler@gmail.com
+# Corresponds with analyses and figures in Kügler et al. (in Review)
 
 # This script analyses tracks of individual singers localized with vector-sensors (Directional Autonomous Seafloor Acoustic Recorders, DASARs)
-# off Maui, Hawaiʻi in April 2020 to investigate diel patterns of the number of singers, spacing distances among singers, and movement behavior
-# while singing.
+# off Maui, Hawaiʻi in April 2020 to investigate diel patterns of the number of singers, distances to shore, spacing distances among singers,
+# and movement behavior while singing.
 
 # Input data: csv files containing coordinates of individual singers (tracks) every 60 s over 3 hours.
+#             bathymetry data for Maui
 
-#             Note: Coordinates are in UTM space relative to the position of DASAR Y
+#             Note: Coordinates of singer tracks are in UTM space relative to the position of DASAR Y
 #                   Tracks were manually compared across 24 hours and TrackIDs adjusted if multiple tracks belonged to the same individual
+#                   Coordinates of the bathymetry are in WGS84 space
 
-#Generalized Additive Models (GAMs) are fit for hourly averages of numbers of singers and minimum spacing distances and
+#Generalized Additive Models (GAMs) are fit for hourly averages of numbers of singers, distances to shore, and minimum spacing distances and
 #   day of the season
 #   hour of the day
 
 #A binomial GAM is fit for the probability of a singer to spend the majority (>70%) per hour remaining stationary, traveling, or both and
 #   day of the season
 #   hour of the day
+
+# To control for detection probability and possible autocorrelation, data included in the models were subset to whale tracks within 6 km of DASAR Y
+# and the first 30 minutes of every hour. Average distance to DASAR Y per hour was also included as a control variable in all models.
 
 #Functions:
 # pkgTest() is a function that tests if a R package already exists on a system and if not, installs and loads it
@@ -69,6 +75,7 @@ pkgTest('stringr')
 pkgTest('zoo') #for smoothing of tracks with rollapply
 
 pkgTest('terra') #to project DASAR lat/long coordinates to UTM
+pkgTest('marmap') #to get distance to shore
 
 pkgTest('mgcv') #to fit and analyse GAMs
 
@@ -80,7 +87,7 @@ pkgTest('patchwork') #to arrange multiple ggplots nicely into one
 
 #GAM plots settings
 
-gam_plots_params<-function(seasonal=F, diel=F,site=NULL, signif=T){
+gam_plots_params<-function(seasonal=F, diel=F, dist.y=F, signif=T){
   list(
     if(signif)geom_ribbon(aes(ymin=fit-se, ymax=fit+se, group=1), 
                           fill = "grey75", alpha = 0.6),
@@ -89,24 +96,28 @@ gam_plots_params<-function(seasonal=F, diel=F,site=NULL, signif=T){
                            fill = "lightcoral", alpha = 0.3),
     if(!signif)geom_line(color='#ba6a68'),
     theme_bw(),
-    if(signif)theme(axis.text = element_text(size = 12, color = "black"),
-                    axis.title = element_text(size = 12, color = "black"),
-                    axis.text.y = element_text(size = 12, color = "black", angle = 90, hjust=0.5),
+    if(signif)theme(axis.text = element_text(size = 16, color = "black"),
+                    axis.title = element_text(size = 16, color = "black"),
+                    axis.text.y = element_text(size = 16, color = "black", angle = 90, hjust=0.5),
                     panel.border=element_rect(color="black", size=0.75), 
                     panel.grid = element_blank(),
                     axis.line.x.top = element_line(color="black", size=0.75)),
-    if(!signif)theme(axis.text = element_text(size = 12, color = "#ba6a68"),
-                     axis.title = element_text(size = 12, color = "#ba6a68"),
-                     axis.text.y = element_text(size = 12, color = "#ba6a68", angle = 90, hjust=0.5),
+    if(!signif)theme(axis.text = element_text(size = 16, color = "#ba6a68"),
+                     axis.title = element_text(size = 16, color = "#ba6a68"),
+                     axis.text.y = element_text(size = 16, color = "#ba6a68", angle = 90, hjust=0.5),
                      panel.border=element_rect(color="#ba6a68", size=0.75), 
                      panel.grid = element_blank(),
                      axis.line.x.top = element_line(color="#ba6a68", size=0.75),
                      axis.ticks= element_line(color="#ba6a68")),
     if(diel)scale_x_continuous(breaks=seq(from=0, to=23, by=3)/24, labels=c('0', '3', '6', '9', '12', '15', '18', '21')),
-    if(diel)labs(x="Hour", title=site),
-    if(seasonal)labs(x="Julian day", title="")
+    if(diel)labs(y='Partial effect', x="Hour"),
+    if(seasonal)labs(y='Partial effect', x="Day of the season"),
+    if(dist.y)labs(y='Partial effect', x='Distance to DASAR Y [km]'),
+    if(dist.y)scale_x_continuous(limits=c(0,6), breaks=c(0:6))
   )
 }
+
+### --- ---
 
 fix_timestamp<-function(df){
   
@@ -447,10 +458,31 @@ tracks<-rbind(tracks.20200404,
 
 ### ---
 
+#Convert easting/northing coordinates of tracks to Lat/Long
+#We only need this to get distances to shore with marmap. We otherwise will continue working in UTM space
+
+p1 <- vect(tracks[,c('easting.SMA', 'northing.SMA')], geom=c("easting.SMA", "northing.SMA"), crs="+proj=utm +zone=4 +datum=WGS84  +units=km")
+p2 <- project(p1, "+proj=longlat +datum=WGS84")
+lonlat <- as.data.frame(geom(p2)[, c("x", "y")])
+
+#import bathymetry data with marmap (long loading time; .Rda file of bathymetry data provided for faster loading)
+#maui.bathy<-read.bathy('LandObservations/maui_bathy_5m.csv', header=T)
+#saveRDS(maui.bathy, file='LandObservations/maui_bathy_5m.Rda')
+maui.bathy<-readRDS('LandObservations/maui_bathy_5m.Rda')
+
+#get distance to shore (shore=isobath 0) - Note: long processing time!
+dist_shore<-round(dist2isobath(maui.bathy, lonlat, isobath=0, locator=F))[1]
+
+#add distances back to tracks dataframe
+tracks$dist_shore<-dist_shore[,1]
+
+
 # some house-keeping
 
 #round timestamp to hour
 tracks$timestamp.h<-floor_date(tracks$timestamp, unit="hour")
+
+tracks$Hour<-times(strftime(tracks$timestamp.h, "%H:%M:%S", tz="UTC"))
 
 #subset to only whales within 6km of DASAR Y (middle of array)
 tracks.6km<-subset(tracks, d_y.sma<=6)
@@ -459,10 +491,24 @@ tracks.6km<-subset(tracks, d_y.sma<=6)
 tracks.6km.30min<-subset(tracks.6km, (minute(timestamp)>=00 & minute(timestamp)<=30))
 
 
-
+################################################################
 
 
 # 3) SUMMARIZE EFFORT ----
+
+#frequency distribution of localizations relative to distance to DASAR Y (Figure S2 in Kügler et al.)
+
+localizations.histogram<-ggplot(tracks, aes(d_y.sma)) +
+  theme_classic() +
+  geom_histogram(binwidth=1, center=0.5, fill='grey75', color='black') +
+  scale_x_continuous(limits=c(0,20), breaks=c(0:20)) +
+  scale_y_continuous(breaks=c(0,1000,2000,3000,4000,5000)) +
+  labs(x='Distance to DASAR Y [km]', y='Count of localisations') +
+  theme(axis.text = element_text(size = 19, color = "black"),
+        axis.title = element_text(size = 19, color = "black"))
+
+#ggsave(localizations.histogram, filename='../Plots/Maui_SingerTracks_histogram.png', width=20, height=12, units='in',  bg = "white")
+
 
 tracks.effort<-as.data.frame(tracks %>%
                                group_by(Date=as.Date(timestamp, tz='UTC'))%>%
@@ -478,7 +524,7 @@ tracks.6km.effort<-as.data.frame(tracks.6km %>%
 
 tracks.effort<-merge(tracks.effort, tracks.6km.effort)
 
-#write.csv(tracks.effort, 'Results/Maui_SingerTracks_effort.csv', row.names=F)
+#write.csv(tracks.effort, '../Results/Maui_SingerTracks_effort.csv', row.names=F)
 
 
 ################################################################
@@ -487,20 +533,25 @@ tracks.effort<-merge(tracks.effort, tracks.6km.effort)
 # 4) CALCULATE DATA OF INTEREST PER HOUR ----
 
 # a - get number of whales within 6km every hour
-# b - get distances to nearest neighbor
-# c - get number of stationary/traveling/both states per hour
-
+# b - get distances to shore
+# c - get distances to nearest neighbor
+# d - get number of stationary/traveling/both states per hour
 
 
 ### ---
-
 
 
 # (a) - get number of whales within 6km every hour
 
 tracks.n<-as.data.frame(tracks.6km.30min %>% 
                            group_by(timestamp.h) %>%
-                           summarise(whales.n=length(unique(TrackID_new))
+                           summarise(whales.n=length(unique(TrackID_new)),
+                                     d_y.sma=median(d_y.sma),
+                                     d_shore=median(dist_shore),
+                                     easting=mean(easting, na.rm=T),
+                                     northing=mean(northing,na.rm=T),
+                                     easting.sma=mean(easting.SMA, na.rm=T),
+                                     northing.sma=mean(northing.SMA,na.rm=T)
                            ))
 
 
@@ -512,15 +563,48 @@ tracks.n$Date<-as.Date(tracks.n$timestamp.h, tz='UTC')
 #convert date to julian day
 tracks.n$julian = as.numeric(format(as.Date(tracks.n$timestamp.h, tz='UTC'), "%j"))
 
+# reference whale season relative to December 1st
+tracks.n$day.season<-tracks.n$julian+31
 
 ### ---
 
-# (b) - get distances to nearest neighbor
+# (b) - distance to shore
+
+tracks.dist_shore<-as.data.frame(tracks.6km.30min %>% 
+                                   group_by(timestamp.h, TrackID_new) %>%
+                                   summarise(d_shore=median(dist_shore),
+                                             d_y.sma=median(d_y.sma),
+                                             easting=mean(easting, na.rm=T),
+                                             northing=mean(northing,na.rm=T),
+                                             easting.sma=mean(easting.SMA, na.rm=T),
+                                             northing.sma=mean(northing.SMA,na.rm=T)
+                                   ))
+
+#get date and hour from timestamp
+tracks.dist_shore$Hour<-times(strftime(tracks.dist_shore$timestamp.h, "%H:%M:%S", tz='UTC'))
+tracks.dist_shore$Date<-as.Date(tracks.dist_shore$timestamp.h,tz='UTC')
+
+#convert date to julian day
+tracks.dist_shore$julian = as.numeric(format(as.Date(tracks.dist_shore$timestamp.h, tz='UTC'), "%j"))
+
+# reference whale season relative to December 1st
+tracks.dist_shore$day.season<-tracks.dist_shore$julian+31
+
+### ---
+
+
+# (c) - get distances to nearest neighbor
 
 #calculate mean location for each track and hour
 tracks.dist<-as.data.frame(tracks.6km.30min %>% 
                           group_by(timestamp.h, TrackID_new) %>%
                           summarise(easting=mean(easting, na.rm=T),
+                                    northing=mean(northing,na.rm=T),
+                                    easting.sma=mean(easting.SMA, na.rm=T),
+                                    northing.sma=mean(northing.SMA,na.rm=T),
+                                    d_y.sma=median(d_y.sma),
+                                    d_shore=median(dist_shore),
+                                    easting=mean(easting, na.rm=T),
                                     northing=mean(northing,na.rm=T),
                                     easting.sma=mean(easting.SMA, na.rm=T),
                                     northing.sma=mean(northing.SMA,na.rm=T)
@@ -562,11 +646,13 @@ tracks.dist$Date<-as.Date(tracks.dist$timestamp.h,tz='UTC')
 #convert date to julian day
 tracks.dist$julian = as.numeric(format(as.Date(tracks.dist$timestamp.h, tz='UTC'), "%j"))
 
+# reference whale season relative to December 1st
+tracks.dist$day.season<-tracks.dist$julian+31
 
 ### ---
 
 
-# (c) - get proportion of stationary/traveling/both states per hour
+# (d) - get proportion of stationary/traveling/both states per hour
 
 tracks.state<-as.data.frame(tracks.6km.30min %>% 
                           group_by(timestamp.h, TrackID_new) %>%
@@ -575,7 +661,13 @@ tracks.state<-as.data.frame(tracks.6km.30min %>%
                                     #how many minutes were spent stationary
                                     stationary.t=sum(state.sma=='stationary', na.rm=T),
                                     #how many minutes were spent traveling
-                                    travel.t=sum(state.sma=='travel', na.rm=T)
+                                    travel.t=sum(state.sma=='travel', na.rm=T),
+                                    d_y.sma=median(d_y.sma),
+                                    d_shore=median(dist_shore),
+                                    easting=mean(easting, na.rm=T),
+                                    northing=mean(northing,na.rm=T),
+                                    easting.sma=mean(easting.SMA, na.rm=T),
+                                    northing.sma=mean(northing.SMA,na.rm=T)
                           )%>%
                           mutate(#was whale predominantly stationary, traveling, or both during a given hour
                                 stationary_percent=stationary.t/samples, 
@@ -587,8 +679,8 @@ tracks.state<-as.data.frame(tracks.6km.30min %>%
 
 
 #convert dataframe to long format
-tracks.state.binary<-reshape2::melt(tracks.state[,c('timestamp.h', 'travel_binary', 'stationary_binary', 'both_binary')], id='timestamp.h')
-names(tracks.state.binary)<-c('timestamp.h','behavior','state')
+tracks.state.binary<-reshape2::melt(tracks.state[,c('timestamp.h', 'd_y.sma', 'd_shore', 'easting', 'northing','travel_binary', 'stationary_binary', 'both_binary')], id=c('timestamp.h', 'd_y.sma', 'd_shore','easting','northing'))
+names(tracks.state.binary)<-c('timestamp.h','d_y.sma', 'd_shore','easting','northing','behavior','state')
 
 #get date and hour from timestamp
 tracks.state.binary$Hour<-times(strftime(tracks.state.binary$timestamp.h, "%H:%M:%S", tz='UTC'))
@@ -597,6 +689,8 @@ tracks.state.binary$Date<-as.Date(tracks.state.binary$timestamp.h,tz='UTC')
 #convert date to julian day
 tracks.state.binary$julian<-as.numeric(format(as.Date(tracks.state.binary$timestamp.h, tz='UTC'), "%j"))
 
+# reference whale season relative to December 1st
+tracks.state.binary$day.season<-tracks.state.binary$julian+31
 
 ### ---
 
@@ -638,6 +732,15 @@ tracks.n.summary<-as.data.frame(tracks.n %>%
 
 ### ---
 
+tracks.d_shore.summary<-as.data.frame(tracks.dist_shore %>%
+                                        group_by(Hour)%>%
+                                        summarise(whales.d_shore.median=median(d_shore),
+                                                  whales.d_shore.IQR=IQR(d_shore)
+                                        ))       
+
+
+### ---
+
 tracks.dist.summary<-as.data.frame(tracks.dist %>%
                                      group_by(Hour=times(strftime(timestamp.h, "%H:%M:%S", tz='UTC')))%>%
                                      summarise(min_d.median=median(min_d, na.rm=T),
@@ -658,33 +761,73 @@ tracks.state.summary<-as.data.frame(tracks.state.sum %>%
 
 ### ---
 
-tracks.summary<-merge(tracks.n.summary, tracks.dist.summary)
+tracks.summary<-merge(tracks.n.summary, tracks.d_shore.summary)
+tracks.summary<-merge(tracks.summary, tracks.dist.summary)
 tracks.summary<-merge(tracks.summary, tracks.state.summary)
 
-#write.csv(tracks.summary, 'Results/Maui_SingerTracks_summary.csv', row.names=F)
+#write.csv(tracks.summary, '../Results/Maui_SingerTracks_summary.csv', row.names=F)
 
 
 ################################################################
 
 # 5) STATISTICAL ANALYSIS (Generalized Additive Models) ----
 
+# Number of singers
 
-gam.tracks.n<-gam(whales.n ~ s(julian, k=8) + s(Hour, bs='cc'), data=tracks.n, method='REML', select=T)
+gam.tracks.n<-gam(whales.n ~ s(day.season, k=8) + s(Hour, bs='cc') + s(d_y.sma), 
+                  data=tracks.n, method='REML', family='quasipoisson', select=T)
 
+#check for autocorrelation
+acf(residuals(gam.tracks.n))
+pacf(residuals(gam.tracks.n))
+
+#get significances
 anova.gam.n<-anova(gam.tracks.n)
 
 ### ---
 
-gam.tracks.dist<-gam(min_d.sma ~ s(julian, k=7) + s(Hour, bs='cc'), data=tracks.dist, method='REML', select=T)
+# Distance to shore
+
+gam.tracks.dist_shore<-gam(d_shore ~ s(day.season, k=8) + s(Hour, bs='cc') + s(d_y.sma), 
+                           data=tracks.dist_shore, method='REML', select=T)
+
+#check for autocorrelation
+acf(residuals(gam.tracks.n))
+pacf(residuals(gam.tracks.n))
+
+#get significances
+anova.gam.dist_shore<-anova(gam.tracks.dist_shore)
+
+### ---
+
+# Minimum distance
+
+gam.tracks.dist<-gam(min_d.sma ~ s(day.season, k=7) + s(Hour, bs='cc') + s(d_y.sma), 
+                     data=tracks.dist, method='REML', select=T)
+
+#check for autocorrelation
+acf(residuals(gam.tracks.dist))
+pacf(residuals(gam.tracks.dist))
+
+#get significances
 anova.gam.dist<-anova(gam.tracks.dist)
 
 ### ---
 
-gam.tracks.state<-gam(state~ s(julian, k=8, by=behavior) + s(Hour, bs='cc', by=behavior), data=tracks.state.binary, method='REML', family='binomial', select=T)
+# Stationary/Travel/Both state while singing
+
+gam.tracks.state<-gam(state~ s(day.season, k=8, by=behavior) + s(Hour, bs='cc', by=behavior) + s(d_y.sma, by=behavior), 
+                      data=tracks.state.binary, method='REML', family='binomial', select=T)
+
+#check for autocorrelation
+acf(residuals(gam.tracks.state))
+pacf(residuals(gam.tracks.state))
+
+#get significances
 anova.gam.state<-anova(gam.tracks.state)
 
-
 #---
+
 
 #Create effect plots. Because plot.gam() doesn't allow for a lot of adjustments of the look of the plots,
 #we're going to create them from scratch.
@@ -692,6 +835,7 @@ anova.gam.state<-anova(gam.tracks.state)
 # (a) - pull out all smoothers 
 
 smoothers.tracks.n <- plot(gam.tracks.n, pages=1, scale=0)  # plot.gam returns a list of n elements, one per plot
+smoothers.tracks.dist_shore <- plot(gam.tracks.dist_shore, pages=1, scale=0)
 smoothers.tracks.dist <- plot(gam.tracks.dist, pages=1, scale=0)  
 smoothers.tracks.state <- plot(gam.tracks.state, pages=1, scale=0) 
 
@@ -705,27 +849,38 @@ get_GAMsmoothers<-function(smoothers,n){
   return(sm.fit)
 }
 
+
 # Number of singers
 
-sm.julian.n<-get_GAMsmoothers(smoothers.tracks.n,1)
+sm.season.n<-get_GAMsmoothers(smoothers.tracks.n,1)
 sm.diel.n<-get_GAMsmoothers(smoothers.tracks.n,2)
+sm.d_y.n<-get_GAMsmoothers(smoothers.tracks.n,3)
+
+# Distance to shore
+
+sm.season.dist_shore<-get_GAMsmoothers(smoothers.tracks.dist_shore,1)
+sm.diel.dist_shore<-get_GAMsmoothers(smoothers.tracks.dist_shore,2)
+sm.d_y.dist_shore<-get_GAMsmoothers(smoothers.tracks.dist_shore,3)
 
 # Minimum distance
 
-sm.julian.dist<-get_GAMsmoothers(smoothers.tracks.dist,1)
+sm.season.dist<-get_GAMsmoothers(smoothers.tracks.dist,1)
 sm.diel.dist<-get_GAMsmoothers(smoothers.tracks.dist,2)
+sm.d_y.dist<-get_GAMsmoothers(smoothers.tracks.dist,3)
 
 # Stationary/Traveling/Both
 
-sm.julian.stationay<-get_GAMsmoothers(smoothers.tracks.state,2)
+sm.season.stationay<-get_GAMsmoothers(smoothers.tracks.state,2)
 sm.diel.stationary<-get_GAMsmoothers(smoothers.tracks.state,5)
+sm.d_y.stationary<-get_GAMsmoothers(smoothers.tracks.state,8)
 
-sm.julian.travel<-get_GAMsmoothers(smoothers.tracks.state,1)
+sm.season.travel<-get_GAMsmoothers(smoothers.tracks.state,1)
 sm.diel.travel<-get_GAMsmoothers(smoothers.tracks.state,4)
+sm.d_y.travel<-get_GAMsmoothers(smoothers.tracks.state,7)
 
-sm.julian.both<-get_GAMsmoothers(smoothers.tracks.state,3)
+sm.season.both<-get_GAMsmoothers(smoothers.tracks.state,3)
 sm.diel.both<-get_GAMsmoothers(smoothers.tracks.state,6)
-
+sm.d_y.both<-get_GAMsmoothers(smoothers.tracks.state,9)
 
 ###---
 
@@ -733,76 +888,138 @@ sm.diel.both<-get_GAMsmoothers(smoothers.tracks.state,6)
 
 # Number of singers
 
-gam.plot.n.julian<-ggplot(data=sm.julian.n, aes(x=x, y=fit)) +
+gam.plot.n.season<-ggplot(data=sm.season.n, aes(x=x, y=fit)) +
   gam_plots_params(seasonal=T, signif=ifelse(anova.gam.n$s.table[1,4]<=0.05, TRUE, FALSE)) +
-  labs(y="Partial effect for number of whales") +
   scale_y_continuous(labels=prettyNum)
 
 gam.plot.n.diel<-ggplot(data=sm.diel.n, aes(x=x, y=fit)) +
   gam_plots_params(diel=T, signif=ifelse(anova.gam.n$s.table[2,4]<=0.05, TRUE, FALSE)) +
-  labs(y="Partial effect for number of whales") +
   scale_y_continuous(labels=prettyNum)
+
+gam.plot.n.d_y<-ggplot(data=sm.d_y.n, aes(x=x, y=fit)) +
+  gam_plots_params(dist.y=T, signif=ifelse(anova.gam.n$s.table[3,4]<=0.05, TRUE, FALSE)) +
+  scale_y_continuous(limits=c(-0.6,0.3),breaks=c(-0.6,-0.3,0,0.3))
+
+
+# Distance to shore
+
+gam.plot.dist_shore.season<-ggplot(data=sm.season.dist_shore, aes(x=x, y=fit)) +
+  gam_plots_params(seasonal=T, signif=ifelse(anova.gam.dist_shore$s.table[1,4]<=0.05, TRUE, FALSE))  +
+  scale_y_continuous(breaks=c(-1000,-500,0), labels=c('-1000','','0'))
+
+gam.plot.dist_shore.diel<-ggplot(data=sm.diel.dist_shore, aes(x=x, y=fit)) +
+  gam_plots_params(diel=T, signif=ifelse(anova.gam.dist_shore$s.table[2,4]<=0.05, TRUE, FALSE)) +
+  scale_y_continuous(breaks=c(-200,0,200), labels=prettyNum)
+
+gam.plot.dist_shore.d_y<-ggplot(data=sm.d_y.dist_shore, aes(x=x, y=fit)) +
+  gam_plots_params(dist.y=T,  signif=ifelse(anova.gam.dist_shore$s.table[3,4]<=0.05, TRUE, FALSE)) +
+  scale_y_continuous(breaks=c(-3000,-2000,-1000,0,1000), labels=c("","-2000","","0","1000"))
+
 
 # Minimum distance
 
-gam.plot.dist.julian<-ggplot(data=sm.julian.dist, aes(x=x, y=fit)) +
-  gam_plots_params(seasonal=T, signif=ifelse(anova.gam.dist$s.table[1,4]<=0.05, TRUE, FALSE)) +
-  labs(y="Partial effect for min neighbor dist.") +
-  scale_y_continuous(labels=prettyNum)
+gam.plot.dist.season<-ggplot(data=sm.season.dist, aes(x=x, y=fit)) +
+  gam_plots_params(seasonal=T, signif=ifelse(anova.gam.dist$s.table[1,4]<=0.05, TRUE, FALSE))
 
 gam.plot.dist.diel<-ggplot(data=sm.diel.dist, aes(x=x, y=fit)) +
   gam_plots_params(diel=T, signif=ifelse(anova.gam.dist$s.table[2,4]<=0.05, TRUE, FALSE)) +
-  labs(y="Partial effect for min neighbor dist.") +
-  scale_y_continuous(labels=prettyNum)
+  scale_y_continuous(breaks=c(-0.3,0,0.3), labels=prettyNum)
+
+gam.plot.dist.d_y<-ggplot(data=sm.d_y.dist, aes(x=x, y=fit)) +
+  gam_plots_params(dist.y=T,  signif=ifelse(anova.gam.dist$s.table[3,4]<=0.05, TRUE, FALSE)) +
+  scale_y_continuous(breaks=c(-1.5,-1,-0.5,0,0.5), labels=c('-1.5','','-0.5','0','0.5'))
+
 
 # Stationary 
 
-gam.plot.stationary.julian<-ggplot(data=sm.julian.stationay, aes(x=x, y=fit)) +
+gam.plot.stationary.season<-ggplot(data=sm.season.stationay, aes(x=x, y=fit)) +
   gam_plots_params(seasonal=T, signif=ifelse(anova.gam.state$s.table[2,4]<=0.05, TRUE, FALSE)) +
-  labs(y='Partial effect', title='Stationary') +
-  scale_y_continuous(labels=prettyNum)
+  scale_y_continuous(breaks=c(-0.25, 0, 0.25), labels=prettyNum)
 
 gam.plot.stationary.diel<-ggplot(data=sm.diel.stationary, aes(x=x, y=fit)) +
   gam_plots_params(diel=T, signif=ifelse(anova.gam.state$s.table[5,4]<=0.05, TRUE, FALSE)) +
-  labs(y="Partial effect", title='Stationary') +
   scale_y_continuous(labels=prettyNum)
+
+gam.plot.stationary.d_y<-ggplot(data=sm.d_y.stationary, aes(x=x, y=fit)) +
+  gam_plots_params(dist.y=T, signif=ifelse(anova.gam.state$s.table[8,4]<=0.05, TRUE, FALSE)) +
+  scale_y_continuous(labels=prettyNum) 
+
 
 # Traveling
 
-gam.plot.travel.julian<-ggplot(data=sm.julian.travel, aes(x=x, y=fit)) +
+gam.plot.travel.season<-ggplot(data=sm.season.travel, aes(x=x, y=fit)) +
   gam_plots_params(seasonal=T, signif=ifelse(anova.gam.state$s.table[1,4]<=0.05, TRUE, FALSE)) +
-  labs(y='Partial effect', title='Traveling') +
   scale_y_continuous(labels=prettyNum)  
 
 gam.plot.travel.diel<-ggplot(data=sm.diel.travel, aes(x=x, y=fit)) +
   gam_plots_params(diel=T, signif=ifelse(anova.gam.state$s.table[4,4]<=0.05, TRUE, FALSE)) +
-  labs(y="Partial effect", title='Traveling') +
-  scale_y_continuous(breaks=c(-0.001, 0, 0.001), labels=prettyNum)
+  scale_y_continuous(labels=prettyNum)
+
+gam.plot.travel.d_y<-ggplot(data=sm.d_y.travel, aes(x=x, y=fit)) +
+  gam_plots_params(dist.y=T, signif=ifelse(anova.gam.state$s.table[7,4]<=0.05, TRUE, FALSE)) +
+  scale_y_continuous(labels=prettyNum)
+
 
 # Both Stationary and Traveling
 
-gam.plot.both.julian<-ggplot(data=sm.julian.both, aes(x=x, y=fit)) +
+gam.plot.both.season<-ggplot(data=sm.season.both, aes(x=x, y=fit)) +
   gam_plots_params(seasonal=T, signif=ifelse(anova.gam.state$s.table[3,4]<=0.05, TRUE, FALSE)) +
-  labs(y='Partial effect', title='Stationary+Traveling') +
   scale_y_continuous(labels=prettyNum)
-
 
 gam.plot.both.diel<-ggplot(data=sm.diel.both, aes(x=x, y=fit)) +
   gam_plots_params(diel=T, signif=ifelse(anova.gam.state$s.table[6,4]<=0.05, TRUE, FALSE)) +
-  labs(y="Partial effect", title='Stationary+Traveling') +
-  scale_y_continuous(labels=prettyNum)
+  scale_y_continuous(breaks=c(-0.5, 0, 0.5), labels=prettyNum)
+
+gam.plot.both.d_y<-ggplot(data=sm.d_y.both, aes(x=x, y=fit)) +
+  gam_plots_params(dist.y=T, signif=ifelse(anova.gam.state$s.table[9,4]<=0.05, TRUE, FALSE)) +
+ scale_y_continuous(labels=prettyNum)
+
 
 ### ---
 
-#combine subplots into one plot and save to file
+##combine subplots into one plot and save to file (Fig. 8 in Kügler et al.)
 
-gam.plots.tracks<-(gam.plot.n.julian | gam.plot.n.diel) /
-                  (gam.plot.dist.julian | gam.plot.dist.diel) / 
-                  (gam.plot.stationary.julian | gam.plot.stationary.diel)/
-                  (gam.plot.travel.julian | gam.plot.travel.diel)/
-                  (gam.plot.both.julian | gam.plot.both.diel)
+gam.plot.n<-(gam.plot.n.season + gam.plot.n.diel + gam.plot.n.d_y) + 
+  plot_annotation(title = "Number of singers", theme = theme(plot.title = element_text(size = 16, face='italic'),
+                                                             plot.margin=unit(c(0, 0, 0, 1), "cm"))) +
+  plot_layout(nrow = 1)
 
-#ggsave(gam.plots.tracks, filename='Plots/Maui_SingerTracks_GAM.png', width=12, height=14, units='in',  bg = "white")    
+gam.plot.dist_shore<-(gam.plot.dist_shore.season + gam.plot.dist_shore.diel + gam.plot.dist_shore.d_y) + 
+  plot_annotation(title = "Distance to shore", theme = theme(plot.title = element_text(size = 16, face='italic'),
+                                                             plot.margin=unit(c(0, 0, 0, 1), "cm"))) +
+  plot_layout(nrow = 1)
+
+gam.plot.dist<-(gam.plot.dist.season + gam.plot.dist.diel + gam.plot.dist.d_y) + 
+  plot_annotation(title = "Minimum neighbour distance", theme = theme(plot.title = element_text(size = 16, face='italic'),
+                                                                     plot.margin=unit(c(0, 0, 0, 1), "cm"))) +
+  plot_layout(nrow = 1)
+
+gam.plot.stationary<-(gam.plot.stationary.season + gam.plot.stationary.diel + gam.plot.stationary.d_y) + 
+  plot_annotation(title = "Stationary", theme = theme(plot.title = element_text(size = 16, face='italic'),
+                                                      plot.margin=unit(c(0, 0, 0, 1), "cm")))+
+  plot_layout(nrow = 1)
+gam.plot.travel<-(gam.plot.travel.season + gam.plot.travel.diel + gam.plot.travel.d_y) + 
+  plot_annotation(title = "Travelling", theme = theme(plot.title = element_text(size = 16, face='italic'),
+                                                     plot.margin=unit(c(0, 0, 0, 1), "cm"))) +
+  plot_layout(nrow = 1)
+
+gam.plot.both<-(gam.plot.both.season + gam.plot.both.diel + gam.plot.both.d_y) + 
+  plot_annotation(title = "Stationary+Travelling", theme = theme(plot.title = element_text(size = 16, face='italic'),
+                                                                plot.margin=unit(c(0, 0, 0, 1), "cm"))) +
+  plot_layout(nrow = 1)
+
+
+gam.plots.tracks<-#  wrap_elements(gam.plot.n) / 
+  wrap_elements(gam.plot.dist_shore) / 
+  wrap_elements(gam.plot.dist) / 
+  wrap_elements(gam.plot.stationary) / 
+  wrap_elements(gam.plot.travel) / 
+  wrap_elements(gam.plot.both) +
+  plot_annotation(tag_levels = c('A', 'B', 'C', 'D', 'E')) &
+  theme(plot.tag = element_text(size = 20), #, face = "bold"
+        plot.tag.position = c(0, 0.98)) 
+
+#ggsave(gam.plots.tracks, filename='../Plots/Maui_SingerTracks_GAM.png', width=15, height=14, units='in',  bg = "white")    
 
 
 ################################################################
